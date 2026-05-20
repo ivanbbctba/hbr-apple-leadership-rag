@@ -3,6 +3,7 @@
 > **Production-grade RAG system** that delivers accurate, source-grounded insights from strategic business documents using LangChain, vector databases, and rigorous evaluation of LLM techniques.
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![Pydantic](https://img.shields.io/badge/Pydantic-Settings-0a7e3c)](https://docs.pydantic.dev/)
 [![LangChain](https://img.shields.io/badge/LangChain-RAG-9cf)](https://python.langchain.com/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Portfolio](https://img.shields.io/badge/Portfolio-UT%20Austin%20McCombs-orange)](https://github.com/ivanbbctba)
