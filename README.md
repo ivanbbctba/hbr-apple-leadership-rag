@@ -94,7 +94,7 @@ flowchart TD
 git clone https://github.com/ivanbbctba/hbr-apple-leadership-rag.git
 cd hbr-apple-leadership-rag
 
-pipenv --python 3.11
+pipenv --python 3.12
 pipenv install
 pipenv install --dev black ruff pytest mypy pre-commit
 
