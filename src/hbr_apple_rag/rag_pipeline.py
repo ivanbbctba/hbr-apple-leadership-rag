@@ -9,7 +9,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-from hbr_apple_rag.config import settings
+from src.hbr_apple_rag.config import settings
 
 
 def _load_and_split_documents(pdf_path: str | Path) -> List[Document]:
