@@ -27,3 +27,9 @@ Here are some excerpts from the document and their sources that are relevant to 
 ###Question
 {question}
 """
+
+QUESTIONS = {
+    "Q1": "Who are the authors of this article and who published this article?",
+    "Q2": "List down the three leadership characteristics in bulleted points and explain each one of the characteristics under two lines.",
+    "Q3": "Can you explain specific examples from the article where Apple's approach to leadership has led to successful innovations?"
+}

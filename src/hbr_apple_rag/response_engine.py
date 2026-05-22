@@ -16,8 +16,8 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from hbr_apple_rag.config import settings
-from hbr_apple_rag.prompts import (
+from src.hbr_apple_rag.config import settings
+from src.hbr_apple_rag.prompts import (
     PROMPT_ENGINEERING_SYSTEM_PROMPT,
     RAG_USER_TEMPLATE,
 )
