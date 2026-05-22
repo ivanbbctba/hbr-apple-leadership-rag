@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     data_dir: Path
     vector_store_dir: Path
 
+    # === Retriever MMR Parameters ===
+    retriever_fetch_k: int
+    retriever_lambda_mult: float
+
 
 # Global settings instance
 settings = Settings()
