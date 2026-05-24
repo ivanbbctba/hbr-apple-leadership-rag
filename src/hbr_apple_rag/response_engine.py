@@ -1,24 +1,12 @@
 """ResponseEngine - Unified class to generate responses using different strategies.
 
-This class was created to allow easy comparison between three approaches:
-    - Raw LLM
-    - Prompt Engineering
-    - RAG (Retrieval-Augmented Generation)
-
-The main goal is to keep the comparison fair by using the same system prompt
-for both Prompt Engineering and RAG modes. The only difference between them
-is the presence of retrieved context from the document.
-
-Design choice (kept as you prefer):
+Design choice kept as you prefer:
     One engine instance = one strategy (raw / prompt_eng / rag).
-    This keeps the "step-by-step" visibility in the UI clear and explicit.
-
-Heavy objects (retriever) are cached via lru_cache so creating many
-ResponseEngine instances during comparisons stays fast.
+    This keeps the "step-by-step" visibility clear.
 """
 
 from functools import lru_cache
-from typing import List
+from typing import List, Dict, Any
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -33,10 +21,7 @@ from src.hbr_apple_rag.prompts import (
 
 @lru_cache(maxsize=1)
 def get_retriever():
-    """
-    Load the persisted Chroma vector store once and reuse it.
-    This makes repeated ResponseEngine(mode="rag") calls cheap after the first load.
-    """
+    """Cached retriever so creating multiple ResponseEngine instances is cheap."""
     embeddings = OpenAIEmbeddings(
         model=settings.embedding_model,
         openai_api_key=settings.openai_api_key,
@@ -59,28 +44,14 @@ def get_retriever():
 
 
 class ResponseEngine:
-    """
-    Generates responses in one of three modes.
-
-    Modes:
-        - "raw"        : Only the user question (baseline)
-        - "prompt_eng" : Strong system prompt, no document context
-        - "rag"        : Same system prompt + retrieved context
-
-    The retriever is loaded through a cached helper so the class stays lightweight
-    even when ComparisonEngine creates multiple instances.
-    """
-
     def __init__(self, mode: str = "rag"):
         valid_modes = {"raw", "prompt_eng", "rag"}
         if mode not in valid_modes:
-            raise ValueError(
-                f"Invalid mode '{mode}'. "
-                f"Valid options are: {', '.join(sorted(valid_modes))}"
-            )
+            raise ValueError(f"Invalid mode '{mode}'")
 
         self.mode = mode
         self._last_context: List = []
+        self._last_usage: Dict[str, Any] = {}
 
         self._llm = ChatOpenAI(
             model=settings.llm_model,
@@ -105,16 +76,17 @@ class ResponseEngine:
             raise ValueError(f"Invalid mode '{self.mode}'")
 
     def get_last_context(self) -> List:
-        """Return chunks retrieved in the last RAG call (empty for other modes)."""
         return self._last_context
 
-    # --- Internal implementations ---
+    def get_last_usage(self) -> Dict[str, Any]:
+        """Return token usage from the last LLM call."""
+        return self._last_usage
+
+    # --- Internal methods ---
 
     def _raw_llm_response(self, question: str) -> str:
-        """Baseline: send ONLY the user question. No system prompt at all."""
-        # Passing a plain string is the cleanest way to guarantee
-        # zero system prompt / hidden instructions for the baseline.
         response = self._llm.invoke(question)
+        self._last_usage = getattr(response, "usage_metadata", {}) or {}
         return response.content.strip()
 
     def _prompt_engineering_response(self, question: str) -> str:
@@ -123,6 +95,7 @@ class ResponseEngine:
             HumanMessage(content=question),
         ]
         response = self._llm.invoke(messages)
+        self._last_usage = getattr(response, "usage_metadata", {}) or {}
         return response.content.strip()
 
     def _rag_response(self, question: str) -> str:
@@ -130,7 +103,7 @@ class ResponseEngine:
             raise ValueError("Retriever was not initialized. Use mode='rag'.")
 
         relevant_docs = self._retriever.invoke(question)
-        self._last_context = relevant_docs   # store for UI / ComparisonEngine
+        self._last_context = relevant_docs
 
         context = "\n\n".join([doc.page_content for doc in relevant_docs])
 
@@ -140,4 +113,5 @@ class ResponseEngine:
         ]
 
         response = self._llm.invoke(messages)
+        self._last_usage = getattr(response, "usage_metadata", {}) or {}
         return response.content.strip()

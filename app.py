@@ -13,6 +13,7 @@ def render_column(col, title: str, mode: str, question: str, engine: ComparisonE
     with col:
         st.subheader(title)
 
+        # System Prompt expander (keep as is)
         sys_prompt = "No system prompt used" if mode == "raw" else PROMPT_ENGINEERING_SYSTEM_PROMPT
         with st.expander("System Prompt", expanded=False):
             st.code(sys_prompt, language="text")
@@ -20,12 +21,27 @@ def render_column(col, title: str, mode: str, question: str, engine: ComparisonE
         with st.spinner(f"Running {title}..."):
             result = engine.run_mode(mode, question)
 
+        # === NEW: Usage & Cost (minimal addition) ===
+        if result.total_tokens or result.estimated_cost_usd:
+            with st.expander("Usage & Cost", expanded=False):
+                if result.total_tokens:
+                    st.markdown(f"**Total Tokens:** {result.total_tokens}")
+                if result.prompt_tokens or result.completion_tokens:
+                    st.markdown(
+                        f"Prompt: {result.prompt_tokens or 0} | "
+                        f"Completion: {result.completion_tokens or 0}"
+                    )
+                if result.estimated_cost_usd:
+                    st.markdown(f"**Estimated Cost:** ${result.estimated_cost_usd:.6f} USD")
+
+        # Retrieved Context (only for RAG) - keep exactly as you have it
         if mode == "rag":
             with st.expander(f"Retrieved Context ({len(result.context)} chunks)", expanded=False):
                 if result.context:
                     for i, doc in enumerate(result.context, 1):
                         st.markdown(f"**Chunk {i}:**")
-                        st.text(doc.page_content[:700] + "..." if len(doc.page_content) > 700 else doc.page_content)
+                        content = doc.page_content[:700] + "..." if len(doc.page_content) > 700 else doc.page_content
+                        st.text(content)
                         st.markdown("---")
                 else:
                     st.info("No context was retrieved.")
@@ -33,7 +49,12 @@ def render_column(col, title: str, mode: str, question: str, engine: ComparisonE
         else:
             st.caption(f"**User Prompt:** {question}")
 
-        st.write(result.answer)
+        # Answer + Time (keep as is)
+        if result.error:
+            st.error(result.error)
+        else:
+            st.write(result.answer)
+
         st.info(f"⏱️ Response time: {result.response_time:.2f}s")
 
 
