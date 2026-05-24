@@ -1,5 +1,6 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
+
 from src.hbr_apple_rag.response_engine import ResponseEngine
 from src.hbr_apple_rag.metrics import MetricsCollector
 
@@ -8,62 +9,54 @@ from src.hbr_apple_rag.metrics import MetricsCollector
 class ModeResult:
     """
     Structured result for a single execution mode.
-    
+
     Attributes:
         answer: The text response from the LLM.
         response_time: Time taken in seconds.
-        context: List of retrieved document chunks (only for RAG).
+        context: List of retrieved document chunks (only populated for RAG).
+        error: Error message if something failed (None on success).
     """
     answer: str
     response_time: float
-    context: List[Any] = field(default_factory=list)
+    context: List = field(default_factory=list)
+    error: Optional[str] = None
 
 
 class ComparisonEngine:
     """
-    Orchestrates the execution of different RAG strategies and collects performance metrics.
+    Orchestrates the three modes while collecting metrics.
+
+    Keeps the explicit per-mode engine creation so the UI can show
+    each strategy independently (the "step-by-step" educational feel).
     """
 
     def run_mode(self, mode: str, question: str) -> ModeResult:
-        """
-        Runs a single mode and returns its structured result.
-        
-        Args:
-            mode: The mode to run ('raw', 'prompt_eng', 'rag').
-            question: The user question.
-            
-        Returns:
-            A ModeResult object.
-        """
         metrics = MetricsCollector()
         engine = ResponseEngine(mode=mode)
-        
+
         metrics.start()
-        answer = engine.respond(question)
+        answer = ""
+        error = None
+        try:
+            answer = engine.respond(question)
+        except Exception as exc:
+            error = str(exc)
+            answer = (
+                "Sorry, an error occurred while generating the response.\n"
+                f"Details: {error}"
+            )
         metrics.stop()
-        
-        context = []
-        if mode == "rag" and engine._retriever:
-            # Note: We retrieve context again here to match the current app.py behavior.
-            # In a future optimization, ResponseEngine could return this metadata.
-            context = engine._retriever.invoke(question)
-            
+
+        context = engine.get_last_context() if mode == "rag" else []
+
         return ModeResult(
             answer=answer,
-            response_time=metrics.response_time,
-            context=context
+            response_time=metrics.response_time or 0.0,
+            context=context,
+            error=error,
         )
 
     def run_all(self, question: str) -> Dict[str, ModeResult]:
-        """
-        Runs all three comparison modes for a given question.
-        
-        Args:
-            question: The user question.
-            
-        Returns:
-            A dictionary mapping mode names to ModeResult objects.
-        """
         return {
             "raw": self.run_mode("raw", question),
             "prompt_eng": self.run_mode("prompt_eng", question),

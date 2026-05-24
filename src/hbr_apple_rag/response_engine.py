@@ -8,9 +8,17 @@ This class was created to allow easy comparison between three approaches:
 The main goal is to keep the comparison fair by using the same system prompt
 for both Prompt Engineering and RAG modes. The only difference between them
 is the presence of retrieved context from the document.
+
+Design choice (kept as you prefer):
+    One engine instance = one strategy (raw / prompt_eng / rag).
+    This keeps the "step-by-step" visibility in the UI clear and explicit.
+
+Heavy objects (retriever) are cached via lru_cache so creating many
+ResponseEngine instances during comparisons stays fast.
 """
 
-from typing import Optional
+from functools import lru_cache
+from typing import List
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -23,39 +31,57 @@ from src.hbr_apple_rag.prompts import (
 )
 
 
+@lru_cache(maxsize=1)
+def get_retriever():
+    """
+    Load the persisted Chroma vector store once and reuse it.
+    This makes repeated ResponseEngine(mode="rag") calls cheap after the first load.
+    """
+    embeddings = OpenAIEmbeddings(
+        model=settings.embedding_model,
+        openai_api_key=settings.openai_api_key,
+        openai_api_base=settings.openai_api_base,
+    )
+
+    vector_store = Chroma(
+        persist_directory=str(settings.vector_store_dir),
+        embedding_function=embeddings,
+    )
+
+    return vector_store.as_retriever(
+        search_type="mmr",
+        search_kwargs={
+            "k": settings.retriever_k,
+            "fetch_k": settings.retriever_fetch_k,
+            "lambda_mult": settings.retriever_lambda_mult,
+        },
+    )
+
+
 class ResponseEngine:
     """
-    A simple but clean class to generate responses in three different modes.
+    Generates responses in one of three modes.
 
-    Modes available:
-        - "raw"        : Sends only the user question to the LLM (baseline).
-        - "prompt_eng" : Uses a strong system prompt (no document context).
-        - "rag"        : Uses the same system prompt + relevant context from the PDF.
+    Modes:
+        - "raw"        : Only the user question (baseline)
+        - "prompt_eng" : Strong system prompt, no document context
+        - "rag"        : Same system prompt + retrieved context
 
-    This design allows us to clearly demonstrate the value of good prompting
-    and the additional benefit of retrieval (RAG) in a controlled way.
-
-    Example usage:
-        engine = ResponseEngine(mode="rag")
-        answer = engine.respond("Who are the authors of the article?")
+    The retriever is loaded through a cached helper so the class stays lightweight
+    even when ComparisonEngine creates multiple instances.
     """
 
     def __init__(self, mode: str = "rag"):
-        """
-        Initialize the ResponseEngine.
-
-        Args:
-            mode: The response strategy to use. Options are "raw", "prompt_eng", or "rag".
-                  Default is "rag".
-        """
         valid_modes = {"raw", "prompt_eng", "rag"}
         if mode not in valid_modes:
             raise ValueError(
                 f"Invalid mode '{mode}'. "
                 f"Valid options are: {', '.join(sorted(valid_modes))}"
             )
-        
+
         self.mode = mode
+        self._last_context: List = []
+
         self._llm = ChatOpenAI(
             model=settings.llm_model,
             temperature=settings.temperature,
@@ -63,50 +89,12 @@ class ResponseEngine:
             openai_api_key=settings.openai_api_key,
             openai_api_base=settings.openai_api_base,
         )
-        self._retriever: Optional[Chroma] = None
 
-        # Only initialize the retriever when using RAG mode.
-        # This avoids unnecessary loading when we only need raw or prompt engineering.
+        self._retriever = None
         if self.mode == "rag":
-            self._load_retriever()
-
-    def _load_retriever(self) -> None:
-        """
-        Load the existing persisted vector store from disk.
-
-        Note: We only load here. Document ingestion/creation is handled
-        separately in rag_pipeline.py to keep concerns separated.
-        """
-        embeddings = OpenAIEmbeddings(
-            model=settings.embedding_model,
-            openai_api_key=settings.openai_api_key,
-            openai_api_base=settings.openai_api_base,
-        )
-
-        vector_store = Chroma(
-            persist_directory=str(settings.vector_store_dir),
-            embedding_function=embeddings,
-        )
-
-        self._retriever = vector_store.as_retriever(
-            search_type="mmr",
-            search_kwargs={
-                "k": settings.retriever_k,
-                "fetch_k": settings.retriever_fetch_k,
-                "lambda_mult": settings.retriever_lambda_mult,
-            },
-        )
+            self._retriever = get_retriever()
 
     def respond(self, question: str) -> str:
-        """
-        Generate a response based on the selected mode.
-
-        Args:
-            question: The question to answer.
-
-        Returns:
-            The generated answer as a string.
-        """
         if self.mode == "raw":
             return self._raw_llm_response(question)
         elif self.mode == "prompt_eng":
@@ -114,26 +102,22 @@ class ResponseEngine:
         elif self.mode == "rag":
             return self._rag_response(question)
         else:
-            raise ValueError(
-                f"Invalid mode '{self.mode}'. "
-                "Valid options are: 'raw', 'prompt_eng', 'rag'"
-            )
+            raise ValueError(f"Invalid mode '{self.mode}'")
+
+    def get_last_context(self) -> List:
+        """Return chunks retrieved in the last RAG call (empty for other modes)."""
+        return self._last_context
+
+    # --- Internal implementations ---
 
     def _raw_llm_response(self, question: str) -> str:
-        """
-        Raw LLM mode - sends only the user question (baseline).
-        No system prompt is used at all to ensure a fair comparison.
-        """
-        # We send only the question as a string to ensure the LLM
-        # does not receive any hidden system prompts or instructions.
+        """Baseline: send ONLY the user question. No system prompt at all."""
+        # Passing a plain string is the cleanest way to guarantee
+        # zero system prompt / hidden instructions for the baseline.
         response = self._llm.invoke(question)
         return response.content.strip()
 
     def _prompt_engineering_response(self, question: str) -> str:
-        """
-        Prompt Engineering mode - uses a strong system prompt but no document context.
-        This follows the same system prompt used in the original notebook.
-        """
         messages = [
             SystemMessage(content=PROMPT_ENGINEERING_SYSTEM_PROMPT),
             HumanMessage(content=question),
@@ -142,14 +126,12 @@ class ResponseEngine:
         return response.content.strip()
 
     def _rag_response(self, question: str) -> str:
-        """
-        RAG mode - uses the same system prompt as Prompt Engineering + retrieved context.
-        This allows a fair comparison between the two approaches.
-        """
         if self._retriever is None:
             raise ValueError("Retriever was not initialized. Use mode='rag'.")
 
         relevant_docs = self._retriever.invoke(question)
+        self._last_context = relevant_docs   # store for UI / ComparisonEngine
+
         context = "\n\n".join([doc.page_content for doc in relevant_docs])
 
         messages = [
