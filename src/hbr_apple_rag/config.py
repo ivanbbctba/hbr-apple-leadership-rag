@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     llm_model: str
     embedding_model: str
 
+    # === Model for LLM-as-Judge evaluation ===
+    judge_model: str
+
     # === RAG Pipeline Parameters (aligned with notebook) ===
     chunk_size: int
     chunk_overlap: int

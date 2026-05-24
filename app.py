@@ -21,7 +21,7 @@ def render_column(col, title: str, mode: str, question: str, engine: ComparisonE
         with st.spinner(f"Running {title}..."):
             result = engine.run_mode(mode, question)
 
-        # === NEW: Usage & Cost (minimal addition) ===
+        # === Usage & Cost (minimal addition) ===
         if result.total_tokens or result.estimated_cost_usd:
             with st.expander("Usage & Cost", expanded=False):
                 if result.total_tokens:
@@ -33,6 +33,15 @@ def render_column(col, title: str, mode: str, question: str, engine: ComparisonE
                     )
                 if result.estimated_cost_usd:
                     st.markdown(f"**Estimated Cost:** ${result.estimated_cost_usd:.6f} USD")
+
+        # === Evaluation Scores ===
+        if result.faithfulness_score is not None or result.relevance_score is not None:
+            with st.expander("Evaluation Scores", expanded=False):
+                if result.faithfulness_score is not None:
+                    st.markdown(f"**Faithfulness:** {result.faithfulness_score:.1f}/5")
+                if result.relevance_score is not None:
+                    st.markdown(f"**Relevance:** {result.relevance_score:.1f}/5")
+                st.caption("Scored by LLM-as-Judge")
 
         # Retrieved Context (only for RAG) - keep exactly as you have it
         if mode == "rag":
