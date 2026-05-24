@@ -121,11 +121,12 @@ class ResponseEngine:
 
     def _raw_llm_response(self, question: str) -> str:
         """
-        Raw LLM mode - sends only the user question (same behavior as the notebook).
-        No system prompt is used.
+        Raw LLM mode - sends only the user question (baseline).
+        No system prompt is used at all to ensure a fair comparison.
         """
-        messages = [HumanMessage(content=question)]
-        response = self._llm.invoke(messages)
+        # We send only the question as a string to ensure the LLM
+        # does not receive any hidden system prompts or instructions.
+        response = self._llm.invoke(question)
         return response.content.strip()
 
     def _prompt_engineering_response(self, question: str) -> str:
