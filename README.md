@@ -7,7 +7,7 @@ A clean, well-architected Retrieval-Augmented Generation (RAG) project that demo
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![LangChain](https://img.shields.io/badge/LangChain-RAG-1C3C3C?logo=langchain&logoColor=white)](https://python.langchain.com/)
 [![RAG](https://img.shields.io/badge/RAG-Production-ff6b6b)](https://python.langchain.com/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-gpt-5.4-mini-412991?logo=openai&logoColor=white)](https://openai.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-gpt--5.4--mini-412991?logo=openai&logoColor=white)](https://openai.com/)
 [![Chroma](https://img.shields.io/badge/Chroma-Vector%20DB-FF6B6B)](https://www.trychroma.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-UI-ff4b4b?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Pytest](https://img.shields.io/badge/Pytest-Testing-0A9F3C?logo=pytest&logoColor=white)](https://pytest.org/)
