@@ -1,12 +1,11 @@
 """Tests for configuration management."""
 
-import os
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from hbr_apple_rag.config import Settings
+from src.hbr_apple_rag.config import Settings
 
 
 @pytest.fixture

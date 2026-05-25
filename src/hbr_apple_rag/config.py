@@ -4,6 +4,20 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+MODEL_PRICING = {
+    "gpt-4o-mini": {
+        "prompt": 0.00015,      # $0.15 per 1M tokens
+        "completion": 0.00060,  # $0.60 per 1M tokens
+    },
+    "gpt-5.4-nano": {
+        "prompt": 0.00020,      # $0.20 per 1M tokens
+        "completion": 0.00125,  # $1.25 per 1M tokens
+    },
+    "gpt-5.4-mini": {
+        "prompt": 0.00075,      # $0.75 per 1M tokens
+        "completion": 0.00450,  # $4.50 per 1M tokens
+    },
+}
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -21,6 +35,9 @@ class Settings(BaseSettings):
     # === Model Configuration ===
     llm_model: str
     embedding_model: str
+
+    # === Model for LLM-as-Judge evaluation ===
+    judge_model: str
 
     # === RAG Pipeline Parameters (aligned with notebook) ===
     chunk_size: int

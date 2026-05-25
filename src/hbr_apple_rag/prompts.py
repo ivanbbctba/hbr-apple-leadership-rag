@@ -33,3 +33,22 @@ QUESTIONS = {
     "Q2": "List down the three leadership characteristics in bulleted points and explain each one of the characteristics under two lines.",
     "Q3": "Can you explain specific examples from the article where Apple's approach to leadership has led to successful innovations?"
 }
+
+FAITHFULNESS_JUDGE_PROMPT = """You are an expert evaluator. 
+Rate how faithful the answer is to the provided context on a scale of 0 to 5.
+
+Context:
+{context}
+
+Question: {question}
+Answer: {answer}
+
+Return ONLY a number between 0 and 5. Do not add any explanation."""
+
+RELEVANCE_JUDGE_PROMPT = """You are an expert evaluator.
+Rate how relevant the answer is to the question on a scale of 0 to 5.
+
+Question: {question}
+Answer: {answer}
+
+Return ONLY a number between 0 and 5. Do not add any explanation."""
