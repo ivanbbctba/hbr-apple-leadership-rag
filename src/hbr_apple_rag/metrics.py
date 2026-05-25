@@ -1,35 +1,39 @@
+"""Performance metrics collection for LLM and RAG responses."""
+
 import time
-from dataclasses import dataclass, field
 from typing import Optional
 
 
-@dataclass
 class MetricsCollector:
-    """
-    A class to collect and calculate performance metrics for LLM calls.
-    Currently tracks response time, but is designed to be easily extendable 
-    for token usage and cost tracking in the future.
-    """
-    _start_time: Optional[float] = field(default=None, init=False, repr=False)
-    _end_time: Optional[float] = field(default=None, init=False, repr=False)
-    response_time: Optional[float] = field(default=None, init=False)
+    """Collects performance metrics for a single model invocation."""
+
+    def __init__(self) -> None:
+        self._start_time: Optional[float] = None
+        self.response_time: Optional[float] = None
 
     def start(self) -> None:
-        """Start the timer for the metric collection."""
+        """Begin timing the operation."""
         self._start_time = time.perf_counter()
-        self._end_time = None
         self.response_time = None
 
     def stop(self) -> float:
-        """
-        Stop the timer and calculate the response time.
-        
-        Returns:
-            The calculated response time in seconds.
-        """
+        """End timing and compute the elapsed duration."""
         if self._start_time is None:
-            raise RuntimeError("MetricsCollector.start() must be called before stop()")
-        
-        self._end_time = time.perf_counter()
-        self.response_time = self._end_time - self._start_time
-        return self.response_time
+            raise RuntimeError(
+                "start() must be called before stop(). "
+                "Did you forget to call start()?"
+            )
+
+        elapsed = time.perf_counter() - self._start_time
+        self.response_time = elapsed
+        return elapsed
+
+    @property
+    def has_measurement(self) -> bool:
+        """Return True if stop() has been successfully called at least once."""
+        return self.response_time is not None
+
+    def reset(self) -> None:
+        """Clear any previous measurement."""
+        self._start_time = None
+        self.response_time = None

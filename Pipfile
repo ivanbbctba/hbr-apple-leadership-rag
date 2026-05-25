@@ -19,9 +19,10 @@ streamlit = "*"
 [dev-packages]
 black = "*"
 ruff = "*"
-pytest = "*"
 mypy = "*"
 pre-commit = "*"
+pytest = "*"
+pytest-mock = "*"
 
 [requires]
 python_version = "3.12"

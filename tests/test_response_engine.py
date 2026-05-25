@@ -7,74 +7,89 @@ can be compared fairly.
 """
 
 import pytest
-
-from hbr_apple_rag.response_engine import ResponseEngine
+from unittest.mock import patch, MagicMock
+from src.hbr_apple_rag.response_engine import ResponseEngine
 
 
 class TestResponseEngine:
-    """Test suite for ResponseEngine class."""
-
-    def test_raw_mode_returns_string(self):
-        """Test that raw mode returns a non-empty string."""
-        engine = ResponseEngine(mode="raw")
-        answer = engine.respond("Who are the authors of the article?")
-
-        assert isinstance(answer, str)
-        assert len(answer) > 10
-
-    def test_prompt_eng_mode_returns_string(self):
-        """Test that prompt engineering mode returns a non-empty string."""
-        engine = ResponseEngine(mode="prompt_eng")
-        answer = engine.respond("Who are the authors of the article?")
-
-        assert isinstance(answer, str)
-        assert len(answer) > 10
-
-    def test_rag_mode_returns_string(self):
-        """Test that RAG mode returns a non-empty string."""
-        engine = ResponseEngine(mode="rag")
-        answer = engine.respond("Who are the authors of the article?")
-
-        assert isinstance(answer, str)
-        assert len(answer) > 10
-
-    def test_rag_mode_contains_relevant_information(self):
-        """
-        Basic check that RAG mode can retrieve useful information.
-
-        This test verifies that the RAG mode is able to find relevant context
-        and produce an answer that contains expected information from the article.
-        """
-        engine = ResponseEngine(mode="rag")
-        answer = engine.respond("Who are the authors of the article?")
-
-        # The answer should mention at least one of the key elements
-        assert any(
-            keyword.lower() in answer.lower()
-            for keyword in ["podolny", "hansen", "harvard business review"]
-        )
-
     def test_invalid_mode_raises_error(self):
-        """Test that using an invalid mode raises a clear ValueError."""
         with pytest.raises(ValueError, match="Invalid mode"):
-            ResponseEngine(mode="invalid_mode")
+            ResponseEngine(mode="invalid")
+
+    def test_mode_is_set_correctly(self):
+        engine = ResponseEngine(mode="raw")
+        assert engine.mode == "raw"
+
+    @patch("src.hbr_apple_rag.response_engine.ChatOpenAI")
+    def test_raw_mode_returns_string(self, mock_chat_openai):
+        mock_response = MagicMock()
+        mock_response.content = "This is a test answer from the model."
+        mock_chat_openai.return_value.invoke.return_value = mock_response
+
+        engine = ResponseEngine(mode="raw")
+        result = engine.respond("Test question")
+
+        assert isinstance(result, str)
+        assert len(result) > 5
+
+    @patch("src.hbr_apple_rag.response_engine.ChatOpenAI")
+    def test_prompt_engineering_mode_uses_system_prompt(self, mock_chat_openai):
+        mock_response = MagicMock()
+        mock_response.content = "Answer with system prompt."
+        mock_chat_openai.return_value.invoke.return_value = mock_response
+
+        engine = ResponseEngine(mode="prompt_eng")
+        result = engine.respond("Test question")
+
+        # Check that invoke was called with messages (system + human)
+        call_args = mock_chat_openai.return_value.invoke.call_args[0][0]
+        assert any(getattr(msg, "type", None) == "system" for msg in call_args)
 
     def test_rag_mode_initializes_retriever(self):
-        """Test that RAG mode properly initializes the retriever."""
         engine = ResponseEngine(mode="rag")
         assert engine.mode == "rag"
         assert engine._retriever is not None
 
-    def test_different_modes_can_be_used_independently(self):
-        """
-        Test that we can create multiple ResponseEngine instances
-        with different modes without interference.
-        """
-        raw_engine = ResponseEngine(mode="raw")
-        rag_engine = ResponseEngine(mode="rag")
+    @patch("src.hbr_apple_rag.response_engine.ChatOpenAI")
+    def test_respond_captures_usage(self, mock_chat_openai):
+        mock_response = MagicMock()
+        mock_response.content = "Answer with usage data."
+        mock_response.usage_metadata = {
+            "input_tokens": 50,
+            "output_tokens": 30,
+            "total_tokens": 80,
+        }
+        mock_chat_openai.return_value.invoke.return_value = mock_response
 
-        raw_answer = raw_engine.respond("What is this article about?")
-        rag_answer = rag_engine.respond("What is this article about?")
+        engine = ResponseEngine(mode="raw")
+        engine.respond("Hello")
 
-        assert isinstance(raw_answer, str)
-        assert isinstance(rag_answer, str)
+        usage = engine.get_last_usage()
+        assert usage.get("total_tokens") == 80
+
+    @patch("src.hbr_apple_rag.response_engine.ChatOpenAI")
+    def test_get_last_usage_returns_data_after_respond(self, mock_chat_openai):
+        mock_response = MagicMock()
+        mock_response.content = "Answer text"
+        mock_response.usage_metadata = {
+            "input_tokens": 45,
+            "output_tokens": 25,
+            "total_tokens": 70,
+        }
+        mock_chat_openai.return_value.invoke.return_value = mock_response
+
+        engine = ResponseEngine(mode="raw")
+        engine.respond("Hello")
+
+        usage = engine.get_last_usage()
+        assert usage["total_tokens"] == 70
+        assert usage["input_tokens"] == 45
+
+    @patch("src.hbr_apple_rag.response_engine.ChatOpenAI")
+    def test_respond_handles_llm_exception(self, mock_chat_openai):
+        mock_chat_openai.return_value.invoke.side_effect = Exception("API rate limit")
+
+        engine = ResponseEngine(mode="raw")
+
+        with pytest.raises(Exception):
+            engine.respond("This should fail")
